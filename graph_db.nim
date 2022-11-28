@@ -32,7 +32,7 @@ proc newLabeledPropertyGraph*(): LabeledPropertyGraph =
 
 
 # NODES
-proc addNode*(graph: var LabeledPropertyGraph; nodeId: string = $genOid();
+proc createNode*(graph: var LabeledPropertyGraph; nodeId: string = $genOid();
                 labels: openArray[string] = @[]; properties: JsonNode = newJNull()): NodeID {.discardable.} =
                                                                         # discardable (returns for chaining purposes)
     # add node to Node table with a unique ID (key)
@@ -45,7 +45,7 @@ proc addNode*(graph: var LabeledPropertyGraph; nodeId: string = $genOid();
     result = nodeId
 
 
-proc delNode*(graph: var LabeledPropertyGraph; nodeId: string;) =
+proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) =
 
     # removes all Links and labels to Links connecting to/from this node
     for linkId in (graph.nodes[nodeId].outgoing + graph.nodes[nodeId].incoming):
@@ -63,7 +63,7 @@ proc delNode*(graph: var LabeledPropertyGraph; nodeId: string;) =
 # //data stored with this direction
 # CREATE (p:Person)-[:LIKES]->(t:Technology)
 
-proc addLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: string;
+proc createLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: string;
                 properties: JsonNode = newJNull()): LinkID {.discardable.} =
     # generate unqiue Link ID
     let linkId = $genOid()
@@ -82,40 +82,11 @@ proc addLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: string
 
 when isMainModule:
     var graph = newLabeledPropertyGraph()
-    let
-                                                # TODO: remove nodeId as param, if we need something like a name (ex. URL) use 'properties'
-        homePage = graph.addNode(labels=["Homepage"], properties= %*{"url": "https://site.com/", "title":"Home Title"}) #nodeId="https://site.com/", labels=["Homepage"])
-        aboutPage = graph.addNode(labels=["Branded"], properties= %*{"url": "https://site.com/about", "title":"About Title"}) #nodeId="https://site.com/about", labels=["Branded"])
-        contactPage = graph.addNode(labels=["Branded"], properties= %*{"url": "https://site.com/contact", "title":"Contact Title"})#nodeId="https://site.com/contact", labels=["Branded"])
 
     let
-        internalLink1 = graph.addLink(label="InternalOutbound", incoming=homePage, outgoing=aboutPage)
-        internallink2 = graph.addLink(label="InternalOutbound", incoming=homePage, outgoing=contactPage)
-        internalLink3 = graph.addLink(label="InternalOutbound", incoming=aboutPage, outgoing=contactPage)
-    
-    echo graph.nodes
-    echo "-----\n"
-    echo graph.labels
-    echo "-----\n"
-    echo graph.links
-    echo "-----\n"
+        homePage = graph.createNode(labels=["Homepage"], properties= %*{"url": "https://site.com/", "title":"Home Title"})
+        aboutPage = graph.createNode(labels=["Branded"], properties= %*{"url": "https://site.com/about", "title":"About Title"})
 
-    echo "URLs that have INTERNAL_LINKS from HOMEPAGE"
-    let match = collect(newseq):
-        for linkIdx in graph.labels["InternalOutbound"]:
-            if graph.links[linkIdx].head == homePage: graph.nodes[graph.links[linkIdx].tail].properties["url"]
-    echo "match found: " & $match
-   
-    echo "-----\n"
-    echo graph.links[internalLink1]
-    echo "-----\n"
+    let internalLink1 = graph.createLink(label="InternalOutbound", incoming=homePage, outgoing=aboutPage)
 
-    echo "deleting homepage node"
-    graph.delNode(homePage)
-
-    echo "-----\n"
-    let match2 = collect(newseq):
-        for linkIdx in graph.labels["InternalOutbound"]:
-            if graph.links[linkIdx].head == homePage: graph.nodes[graph.links[linkIdx].tail].properties["url"]
-    echo "URLs that have INTERNAL_LINKS from HOMEPAGE"
-    echo "match found: " & $match2
+    # new tests here :)
