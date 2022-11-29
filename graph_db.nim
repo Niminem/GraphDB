@@ -26,6 +26,8 @@ type
         labels*: LabelTable
     RDFTripleStoreGraph* = object # learn it, add it. start here: https://www.youtube.com/watch?v=yOYodfN84N4&t=2965s
                                   # best optimized for 'inferring new relationships' ex: inference engines
+    GraphType* = enum
+        labeledProperty, rdfTripleStore
 
 # GRAPHS
 proc newLabeledPropertyGraph*(): LabeledPropertyGraph =
