@@ -14,16 +14,18 @@ type
     # following only connecting edges, one needs to know which edges come in
     # and which edges go out. Of course, these can be found in the edge table
     # but searching the edge table is absurd"
-        label*: string
+        lType*: string # link (relationship) type
         head*, tail*: string
         properties*: JsonNode
     NodeTable* = Table[string, Node]
     LinkTable* = Table[string, Link]
     LabelTable* = Table[string, HashSet[string]]
+    TypeTable* = Table[string, HashSet[string]]
     LabeledPropertyGraph* = object # best optimized for 'traversing known relationships'
         nodes*: NodeTable
         links*: LinkTable
         labels*: LabelTable
+        types*: TypeTable
     RDFTripleStoreGraph* = object # learn it, add it. start here: https://www.youtube.com/watch?v=yOYodfN84N4&t=2965s
                                   # best optimized for 'inferring new relationships' ex: inference engines
     GraphType* = enum
@@ -50,13 +52,11 @@ proc createNode*(graph: var LabeledPropertyGraph; labels: openArray[string] = @[
     # return discardable Node ID for chaining/eval purposes
     return nodeId
 
-
-
 proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) = # needs robust exception handling & return value at some point
 
     # removes all Links and labels to Links connecting to/from this node
     for linkId in (graph.nodes[nodeId].outgoing + graph.nodes[nodeId].incoming):
-        graph.labels[graph.links[linkId].label].excl(linkId) # deletes reference of Link from Label table
+        graph.types[graph.links[linkId].lType].excl(linkId) # deletes reference of Link from Label table
         graph.links.del(linkId) # deletes all connected link IDs/keys from Link Table (no broken link rule)
 
     # deletes node ID from all labeled sets
@@ -68,15 +68,15 @@ proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) = # needs rob
 
 
 # LINKS
-proc createLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: string;
+proc createLink*(graph: var LabeledPropertyGraph; lType, incoming, outgoing: string;
                 properties: JsonNode = newJNull()): LinkID {.discardable.} =
     # generate unqiue Link ID
     let linkId: NodeID = $genOid()
     # add new Link to graph
-    graph.links[linkId] = Link(label: label, head: incoming, tail: outgoing, properties: properties)
+    graph.links[linkId] = Link(ltype: lType, head: incoming, tail: outgoing, properties: properties)
     # add Link label to Labels table (if not exist) & add Link ID to label's set in Label table
-    if graph.labels.hasKeyOrPut(label, toHashSet([linkId])):
-        graph.labels[label].incl(linkId)
+    if graph.types.hasKeyOrPut(lType, toHashSet([linkId])):
+        graph.types[lType].incl(linkId)
     # add Link ID to incoming set in Node ID (incoming)
     graph.nodes[incoming].incoming.incl(linkId)
     # add Link ID to outgoing set in Node ID (outgoing)
@@ -86,7 +86,7 @@ proc createLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: str
 
 proc deleteLink*(graph: var LabeledPropertyGraph; linkId: string) = # needs robust exception handling & return value at some point
     # delete linkId from label in Label table
-    graph.labels[graph.links[linkId].label].excl(linkId)
+    graph.types[graph.links[linkId].lType].excl(linkId)
     # delete linkId from head property (incoming for node) nodeId in Node Table
     graph.nodes[graph.links[linkId].head].incoming.excl(linkId)
     # delete linkId from tail property (outgoing for node) nodeId in Node Table
@@ -104,6 +104,6 @@ when isMainModule:
         homePage = graph.createNode(labels=["Homepage"], properties= %*{"url": "https://site.com/", "title":"Home Title"})
         aboutPage = graph.createNode(labels=["Branded"], properties= %*{"url": "https://site.com/about", "title":"About Title"})
 
-    let internalLink1 = graph.createLink(label="InternalOutbound", incoming=homePage, outgoing=aboutPage)
+    let internalLink1 = graph.createLink(lType="InternalOutbound", incoming=homePage, outgoing=aboutPage)
 
     # code here :)
