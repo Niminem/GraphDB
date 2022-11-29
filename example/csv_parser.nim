@@ -1,8 +1,8 @@
 ## Not part of the library, I will need to have a macro (query lang DSL) and support
 ## the user's unique needs with allowing control for Node/Link insertions.
 
-import std/[parsecsv, tables, sequtils, jsonutils, sets, strutils, sugar, json]
-import graph_db, query_lang
+import std/[parsecsv, tables, sequtils, jsonutils, sets, strutils, sugar, json, os]
+import ../src/[graph_db, query_lang]
 
 proc csvToNodes*(graph: var LabeledPropertyGraph; file: string; hasHeaders: bool) = 
     var p: CsvParser
@@ -31,6 +31,16 @@ proc csvToLinks*(graph: var LabeledPropertyGraph; file: string; hasHeaders: bool
             graph.createLink(lType, incoming, outgoing, toJson(toTable[string, string](properties)))
     p.close()
 
+proc csvToNodeProperty*(graph: var LabeledPropertyGraph; file: string; hasHeaders: bool) = 
+    var p: CsvParser
+    p.open(file)
+    if hasHeaders: p.readHeaderRow()
+    while p.readRow():
+        let
+            address = p.rowEntry("Address")
+        graph.nodes[graph.getNodeIdByPropertyVal(property="Address",value=address)].properties.add("Src", %*p.rowEntry("html_tag 1"))
+    p.close()
+
 
 
 when isMainModule:
@@ -39,8 +49,14 @@ when isMainModule:
     var graph = newLabeledPropertyGraph()
 
     var start = getTime()
-    graph.csvToNodes("internal_all.csv", true)
-    graph.csvToLinks("all_inlinks.csv", true)
+    graph.csvToNodes(currentSourcePath.parentDir / "internal_all.csv", true)
+    graph.csvToLinks(currentSourcePath.parentDir / "all_inlinks.csv", true)
+    graph.csvToNodeProperty(currentSourcePath.parentDir / "custom_extraction_all.csv", true)
     var finish = getTime()
-
     echo "Elapsed time: " & $(start - finish) # 1.5 - 1.9 seconds avg
+    echo graph.nodes.len
+    var count = collect(newSeq):
+        for n in graph.nodes.values:
+            if n.properties.hasKey("Src"): 1
+    echo count.len
+    echo graph.links.len
