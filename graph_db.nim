@@ -27,25 +27,30 @@ type
     RDFTripleStoreGraph* = object # learn it, add it. start here: https://www.youtube.com/watch?v=yOYodfN84N4&t=2965s
                                   # best optimized for 'inferring new relationships' ex: inference engines
 
+# GRAPHS
 proc newLabeledPropertyGraph*(): LabeledPropertyGraph =
     result
+    # TODO: robust graph creation w/ initial support for parsing & processing CSV files
+
 
 
 # NODES
-proc createNode*(graph: var LabeledPropertyGraph; nodeId: string = $genOid();
-                labels: openArray[string] = @[]; properties: JsonNode = newJNull()): NodeID {.discardable.} =
-                                                                        # discardable (returns for chaining purposes)
+proc createNode*(graph: var LabeledPropertyGraph; labels: openArray[string] = @[];
+                    properties: JsonNode = newJNull()): NodeID {.discardable.} =
+    # generate unqiue Node ID
+    let nodeId = $genOid()
     # add node to Node table with a unique ID (key)
     graph.nodes[nodeId] = Node(properties: properties, labels: labels.toHashSet)
     # add node lables to Label table
     for label in labels:
         if graph.labels.hasKeyOrPut(label, toHashSet([nodeId])):
             graph.labels[label].incl(nodeId)
-    
-    result = nodeId
+    # return discardable Node ID for chaining/eval purposes
+    return nodeId
 
 
-proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) =
+
+proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) = # needs robust exception handling & return value at some point
 
     # removes all Links and labels to Links connecting to/from this node
     for linkId in (graph.nodes[nodeId].outgoing + graph.nodes[nodeId].incoming):
@@ -58,15 +63,13 @@ proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) =
     # delete node from Node table
     graph.nodes.del(nodeId)
 
+
+
 # LINKS
-
-# //data stored with this direction
-# CREATE (p:Person)-[:LIKES]->(t:Technology)
-
 proc createLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: string;
                 properties: JsonNode = newJNull()): LinkID {.discardable.} =
     # generate unqiue Link ID
-    let linkId = $genOid()
+    let linkId: NodeID = $genOid()
     # add new Link to graph
     graph.links[linkId] = Link(label: label, head: incoming, tail: outgoing, properties: properties)
     # add Link label to Labels table (if not exist) & add Link ID to label's set in Label table
@@ -76,10 +79,22 @@ proc createLink*(graph: var LabeledPropertyGraph; label, incoming, outgoing: str
     graph.nodes[incoming].incoming.incl(linkId)
     # add Link ID to outgoing set in Node ID (outgoing)
     graph.nodes[outgoing].outgoing.incl(linkId)
+    # return discardable Link ID for chaining/eval purposes
+    return linkId
 
-    result = linkId
+proc deleteLink*(graph: var LabeledPropertyGraph; linkId: string) = # needs robust exception handling & return value at some point
+    # delete linkId from label in Label table
+    graph.labels[graph.links[linkId].label].excl(linkId)
+    # delete linkId from head property (incoming for node) nodeId in Node Table
+    graph.nodes[graph.links[linkId].head].incoming.excl(linkId)
+    # delete linkId from tail property (outgoing for node) nodeId in Node Table
+    graph.nodes[graph.links[linkId].tail].outgoing.excl(linkId)
+    # delete linkId from Link table
+    graph.links.del(linkId)
 
 
+
+# Rapid prototyping & testing (develop robust test suite)
 when isMainModule:
     var graph = newLabeledPropertyGraph()
 
@@ -89,4 +104,4 @@ when isMainModule:
 
     let internalLink1 = graph.createLink(label="InternalOutbound", incoming=homePage, outgoing=aboutPage)
 
-    # new tests here :)
+    # code here :)
