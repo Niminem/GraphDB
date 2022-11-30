@@ -1,9 +1,15 @@
 import std/[macros, json, sets, tables]
 import graph_db
 
-proc getNodeIdByPropertyVal*(graph: var LabeledPropertyGraph; property, value: string): string = # quick and dirty query for csv_parser
-    for key,val in graph.nodes.pairs:
-        if val.properties[property].getStr == value: return key
+# quick and dirty query for csv_parser, make robust & add proper exception handling
+proc getNodeIdByPropertyVal*(graph: var LabeledPropertyGraph; property, value: string): string =
+    # OLD (before adding nProperty & lProperty indexes/tables)
+    # for key,val in graph.nodes.pairs:
+    #     if val.properties[property].getStr == value: return key
+    # NEW
+    for nodeId in graph.nProperties[property]:
+        if graph.nodes[nodeId].properties[property].getStr == value: return nodeId
+    
 
 # CREATE (:Person:Actor {name: 'Tom Hanks', born: 1956})
 # CREATE ()-[:ACTED_IN {roles: ['Forrest'], performance: 5}]->()

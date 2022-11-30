@@ -1,19 +1,12 @@
-import oids, tables, sets, json, sugar
+import std/[oids, tables, sets, json, sugar]
 
 type
-    NodeID* = string # alias for reasoning behind return values in specific procedures
-    LinkID* = string # alias for reasoning behind return values in specific procedures
+    NodeID* = string
+    LinkID* = string
     Node* = object
-        # think like "incoming from relationship X" or "outgoing from relationship Y"
         outgoing*, incoming*, labels*: HashSet[string]
-        # A conventional requirement for graph databases is to locate all nodes and vertexes
-        # having some particular attribute. This opens a Pandora’s box of indexing schemes.
         properties*: JsonNode
     Link* = object
-    # "To perform a graph traversal, i.e. to walk from vertex to vertex,
-    # following only connecting edges, one needs to know which edges come in
-    # and which edges go out. Of course, these can be found in the edge table
-    # but searching the edge table is absurd"
         lType*: string # link (relationship) type
         head*, tail*: string
         properties*: JsonNode
@@ -21,15 +14,13 @@ type
     LinkTable* = Table[string, Link]
     LabelTable* = Table[string, HashSet[string]]
     TypeTable* = Table[string, HashSet[string]]
-    LabeledPropertyGraph* = object # best optimized for 'traversing known relationships'
+    NodePropertyTable* = Table[string, HashSet[string]]
+    LinkPropertyTable* = Table[string, HashSet[string]]
+    LabeledPropertyGraph* = object
+        # fields are 'indexes', we have 6 total
         nodes*: NodeTable
         links*: LinkTable
-        labels*: LabelTable
-        types*: TypeTable
-    RDFTripleStoreGraph* = object # learn it, add it. start here: https://www.youtube.com/watch?v=yOYodfN84N4&t=2965s
-                                  # best optimized for 'inferring new relationships' ex: inference engines
-    GraphType* = enum
-        labeledProperty, rdfTripleStore
+        labels*,types*,nProperties*,lProperties*: Table[string, HashSet[string]]
 
 # GRAPHS
 proc newLabeledPropertyGraph*(): LabeledPropertyGraph =
@@ -40,7 +31,7 @@ proc newLabeledPropertyGraph*(): LabeledPropertyGraph =
 
 # NODES
 proc createNode*(graph: var LabeledPropertyGraph; labels: openArray[string] = @[];
-                    properties: JsonNode = newJNull()): NodeID {.discardable.} =
+                    properties: JsonNode = newJObject()): NodeID {.discardable.} =
     # generate unqiue Node ID
     let nodeId = $genOid()
     # add node to Node table with a unique ID (key)
@@ -49,15 +40,24 @@ proc createNode*(graph: var LabeledPropertyGraph; labels: openArray[string] = @[
     for label in labels:
         if graph.labels.hasKeyOrPut(label, toHashSet([nodeId])):
             graph.labels[label].incl(nodeId)
+    # add node properties to Node Property Table (if exists)
+    for property in properties.keys:
+        if graph.nProperties.hasKeyOrPut(property, toHashSet([nodeId])):
+            graph.nProperties[property].incl(nodeId)
     # return discardable Node ID for chaining/eval purposes
     return nodeId
 
+proc deleteLink*(graph: var LabeledPropertyGraph; linkId: string) # forward declaration
 proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) = # needs robust exception handling & return value at some point
 
     # removes all Links and labels to Links connecting to/from this node
     for linkId in (graph.nodes[nodeId].outgoing + graph.nodes[nodeId].incoming):
         graph.types[graph.links[linkId].lType].excl(linkId) # deletes reference of Link from Label table
-        graph.links.del(linkId) # deletes all connected link IDs/keys from Link Table (no broken link rule)
+        graph.deleteLink(linkId) # graph.links.del(linkId) # deletes all connected link IDs/keys from Link Table (no broken link rule)
+    # delete node ID from all properties (and property if now empty)
+    for property in graph.nodes[nodeId].properties.keys:
+        graph.nProperties[property].excl(nodeId)
+        if graph.nProperties[property].len == 0: graph.nProperties.del(property)
 
     # deletes node ID from all labeled sets
     for label in graph.nodes[nodeId].labels:
@@ -69,7 +69,7 @@ proc deleteNode*(graph: var LabeledPropertyGraph; nodeId: string;) = # needs rob
 
 # LINKS
 proc createLink*(graph: var LabeledPropertyGraph; lType, incoming, outgoing: string;
-                properties: JsonNode = newJNull()): LinkID {.discardable.} =
+                properties: JsonNode = newJObject()): LinkID {.discardable.} =
     # generate unqiue Link ID
     let linkId: NodeID = $genOid()
     # add new Link to graph
@@ -77,6 +77,10 @@ proc createLink*(graph: var LabeledPropertyGraph; lType, incoming, outgoing: str
     # add Link label to Labels table (if not exist) & add Link ID to label's set in Label table
     if graph.types.hasKeyOrPut(lType, toHashSet([linkId])):
         graph.types[lType].incl(linkId)
+    # add Link properties to Link Property Table (if exists)
+    for property in properties.keys:
+        if graph.lProperties.hasKeyOrPut(property, toHashSet([linkId])):
+            graph.lProperties[property].incl(linkId)
     # add Link ID to incoming set in Node ID (incoming)
     graph.nodes[incoming].incoming.incl(linkId)
     # add Link ID to outgoing set in Node ID (outgoing)
@@ -87,6 +91,10 @@ proc createLink*(graph: var LabeledPropertyGraph; lType, incoming, outgoing: str
 proc deleteLink*(graph: var LabeledPropertyGraph; linkId: string) = # needs robust exception handling & return value at some point
     # delete linkId from label in Label table
     graph.types[graph.links[linkId].lType].excl(linkId)
+    # delete node ID from all properties (and property if now empty)
+    for property in graph.links[linkId].properties.keys:
+        graph.lProperties[property].excl(linkId)
+        if graph.lProperties[property].len == 0: graph.lProperties.del(property)
     # delete linkId from head property (incoming for node) nodeId in Node Table
     graph.nodes[graph.links[linkId].head].incoming.excl(linkId)
     # delete linkId from tail property (outgoing for node) nodeId in Node Table
@@ -104,6 +112,6 @@ when isMainModule:
         homePage = graph.createNode(labels=["Homepage"], properties= %*{"url": "https://site.com/", "title":"Home Title"})
         aboutPage = graph.createNode(labels=["Branded"], properties= %*{"url": "https://site.com/about", "title":"About Title"})
 
-    let internalLink1 = graph.createLink(lType="InternalOutbound", incoming=homePage, outgoing=aboutPage)
+    let internalLink1 = graph.createLink(lType="InternalOutbound", incoming=homePage, outgoing=aboutPage, properties= %*{"key":"val"})
 
     # code here :)
