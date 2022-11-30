@@ -3,13 +3,20 @@ import graph_db
 
 # quick and dirty query for csv_parser, make robust & add proper exception handling
 proc getNodeIdByPropertyVal*(graph: var LabeledPropertyGraph; property, value: string): string =
-    # OLD (before adding nProperty & lProperty indexes/tables)
-    # for key,val in graph.nodes.pairs:
-    #     if val.properties[property].getStr == value: return key
-    # NEW
     for nodeId in graph.nProperties[property]:
         if graph.nodes[nodeId].properties[property].getStr == value: return nodeId
-    
+
+proc addNodeProperty*(graph: var LabeledPropertyGraph; nodeId, property: string, value: JsonNode) =
+    # quick assertion for not including duplicate keys/fields
+    doAssert not graph.nodes[nodeId].properties.hasKey(property), "Node already has property: " & property
+    # add property and value to node properties Jsonobj
+    graph.nodes[nodeId].properties.add(property, value)
+    # add property to nProperty index
+    if graph.nProperties.hasKeyOrPut(property, toHashSet([nodeId])):
+        graph.nProperties[property].incl(nodeId)
+
+
+
 
 # CREATE (:Person:Actor {name: 'Tom Hanks', born: 1956})
 # CREATE ()-[:ACTED_IN {roles: ['Forrest'], performance: 5}]->()

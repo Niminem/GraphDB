@@ -32,6 +32,7 @@ proc csvToLinks*(graph: var LabeledPropertyGraph; file: string; hasHeaders: bool
                 outgoing = graph.getNodeIdByPropertyVal("Address",dst)
                 properties = zip(p.headers, p.row).filter(proc(item: (string, string)): bool = item[0] in PropertiesToKeep)
             graph.createLink(lType, incoming, outgoing, toJson(toTable[string, string](properties)))
+
     p.close()
 
 proc csvToNodeProperty*(graph: var LabeledPropertyGraph; file: string; hasHeaders: bool) = 
@@ -41,10 +42,8 @@ proc csvToNodeProperty*(graph: var LabeledPropertyGraph; file: string; hasHeader
     while p.readRow():
         let
             address = p.rowEntry("Address")
-        graph.nodes[graph.getNodeIdByPropertyVal(property="Address",value=address)].properties.add("Src", %*p.rowEntry("html_tag 1"))
+        graph.addNodeProperty(graph.getNodeIdByPropertyVal(property="Address",value=address), "Src", %*p.rowEntry("html_tag 1"))
     p.close()
-
-
 
 # when isMainModule:
 #     import times
@@ -64,6 +63,10 @@ proc csvToNodeProperty*(graph: var LabeledPropertyGraph; file: string; hasHeader
 #     echo count.len
 #     echo graph.links.len
 # -----------------------------------------------------------------------------------------------------------
+
+
+
+
 
 # HTML STUFF ------------------------------------------------------------------------------------------------
 # This parsing isn't going to cut it. Nim's html parser really sucks.
@@ -153,3 +156,16 @@ proc tokenizeHtmlBody*(htmlSrc: string): seq[string] =
 #         echo "match 2: " & match2
 
 # -----------------------------------------------------------------------------------------------------------
+
+proc addTokensProperty*(graph: var LabeledPropertyGraph) =
+    for nodeId in graph.nProperties["Src"].items:
+        let
+            htmlSrc = graph.nodes[nodeId].properties["Src"].getStr
+            htmlTokens = tokenizeHtmlBody(htmlSrc)
+        graph.addNodeProperty(nodeId, "Tokens", %*htmlTokens)
+
+proc buildModel*(graph: var LabeledPropertyGraph) =
+    graph.csvToNodes(currentSourcePath.parentDir / "csv_files" / "internal_all.csv", true)
+    graph.csvToLinks(currentSourcePath.parentDir  / "csv_files" / "all_inlinks.csv", true)
+    graph.csvToNodeProperty(currentSourcePath.parentDir / "csv_files" / "custom_extraction_all.csv", true)
+    graph.addTokensProperty()
