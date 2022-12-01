@@ -1,4 +1,4 @@
-import std/[json, tables, sets, os, parsecsv, sugar, strutils, times]
+import std/[json, tables, sets, os, parsecsv, sugar, strutils, times, sequtils]
 import ../src/[graph_db, query_lang]
 import modeling
 
@@ -43,7 +43,13 @@ when isMainModule:
     echo "graph build exe time: " & $(getTime() - graphStart)
 
     # code here :)
-    # X
+    let urls1 = graph.findLinkOpportunities("https://getgoally.com/blog/5-tips-for-helping-a-child-with-adhd-clean-their-room/", @["room"])
+    # let urls2 = graph.findLinkOpportunities("https://getgoally.com/blog/how-to-create-routines-for-a-child-with-autism/", @["routine"])
+    var f = open("output.txt", fmWrite)
+    for line in urls1:#.concat(urls2).deduplicate:
+        if "/blog/" in line:
+            f.writeLine(line)
+    f.close()
 
 
     # ----------------------------- TEST --------------------------------------------------------------------------
