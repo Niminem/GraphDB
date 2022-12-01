@@ -3,7 +3,7 @@
 ## 
 import std/[
     parsecsv, tables, sequtils, jsonutils, sets, strutils, sugar, json, os,
-    htmlparser, xmltree, strtabs, unidecode]
+    htmlparser, xmltree, strtabs, unidecode, times]
 import ../src/[graph_db, query_lang]
 
 # CSV STUFF ------------------------------------------------------------------------------------------------
@@ -103,7 +103,8 @@ proc getText*(n: XmlNode): string =
 
 proc tokenizeHtmlBody*(htmlSrc: string): seq[string] =
     # get body tag
-    var body = parseHtml(htmlSrc).findAll("body")[0]
+    let src = parseHtml(htmlSrc)
+    var body = src.findAll("body")[0]
     
     # TODO: get content from body, in order, as a sequence of tokens.
     # this way, we can search for both single terms and "ordered phrases"
@@ -158,14 +159,14 @@ proc tokenizeHtmlBody*(htmlSrc: string): seq[string] =
 # -----------------------------------------------------------------------------------------------------------
 
 proc addTokensProperty*(graph: var LabeledPropertyGraph) =
-    for nodeId in graph.nProperties["Src"].items:
-        let
-            htmlSrc = graph.nodes[nodeId].properties["Src"].getStr
-            htmlTokens = tokenizeHtmlBody(htmlSrc)
+    for nodeId in graph.nProperties["html_tag 1"].items: # ["Src"].items:
+        let htmlSrc = graph.nodes[nodeId].properties["html_tag 1"].getStr # ["Src"].getStr
+        if htmlSrc.len == 0: continue # ***** TEMPORARY *****
+        let htmlTokens = tokenizeHtmlBody(htmlSrc)
         graph.addNodeProperty(nodeId, "Tokens", %*htmlTokens)
 
 proc buildModel*(graph: var LabeledPropertyGraph) =
     graph.csvToNodes(currentSourcePath.parentDir / "csv_files" / "internal_all.csv", true)
     graph.csvToLinks(currentSourcePath.parentDir  / "csv_files" / "all_inlinks.csv", true)
-    graph.csvToNodeProperty(currentSourcePath.parentDir / "csv_files" / "custom_extraction_all.csv", true)
+    # graph.csvToNodeProperty(currentSourcePath.parentDir / "csv_files" / "custom_extraction_all.csv", true)
     graph.addTokensProperty()
