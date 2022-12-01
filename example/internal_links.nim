@@ -43,10 +43,9 @@ when isMainModule:
     echo "graph build exe time: " & $(getTime() - graphStart)
 
     # code here :)
-    let urls1 = graph.findLinkOpportunities("https://getgoally.com/blog/5-tips-for-helping-a-child-with-adhd-clean-their-room/", @["room"])
-    # let urls2 = graph.findLinkOpportunities("https://getgoally.com/blog/how-to-create-routines-for-a-child-with-autism/", @["routine"])
+    let urls1 = graph.findLinkOpportunities("https://getgoally.com/blog/how-to-keep-your-kids-busy-while-you-work-from-home/", @["remote"])
     var f = open("output.txt", fmWrite)
-    for line in urls1:#.concat(urls2).deduplicate:
+    for line in urls1:
         if "/blog/" in line:
             f.writeLine(line)
     f.close()
